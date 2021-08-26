@@ -7,12 +7,14 @@ use super::{
     },
     schema::{Apiv2Errors, Apiv2Operation, Apiv2Schema},
 };
+
 #[cfg(feature = "actix3")]
 use actix_web::web::ReqData;
+
 use actix_web::{
     http::StatusCode,
-    web::{Bytes, Data, Form, Json, Path, Payload, Query},
-    Error, HttpRequest, HttpResponse, Responder,
+    web::{Bytes, Data, Form, Json, Path, Payload, Query, ReqData},
+    HttpRequest, HttpResponse, Responder,
 };
 
 use pin_project::pin_project;
