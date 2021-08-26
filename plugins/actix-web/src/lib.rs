@@ -2,7 +2,10 @@
 extern crate actix_web2 as actix_web;
 #[cfg(feature = "actix3")]
 extern crate actix_web3 as actix_web;
+#[cfg(feature = "actix4")]
+extern crate actix_web4 as actix_web;
 
+#[cfg(feature = "actix4")]
 pub mod web;
 
 pub use self::web::{Resource, Route, Scope};
@@ -14,8 +17,7 @@ use self::web::{RouteWrapper, ServiceConfig};
 use actix_service::ServiceFactory;
 use actix_web::{
     dev::{HttpServiceFactory, MessageBody, ServiceRequest, ServiceResponse, Transform},
-    web::HttpResponse,
-    Error,
+    Error, HttpResponse,
 };
 use futures::future::{ok as fut_ok, Ready};
 use paperclip_core::v2::models::{
@@ -94,8 +96,8 @@ impl<T, B> App<T, B>
 where
     B: MessageBody,
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -169,10 +171,10 @@ where
     /// **NOTE:** This doesn't affect spec generation.
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: actix_service::IntoServiceFactory<U>,
+        F: actix_service::IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -203,8 +205,8 @@ where
         mw: M,
     ) -> App<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -214,7 +216,7 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest,
+            ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -235,8 +237,8 @@ where
         mw: F,
     ) -> App<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -245,7 +247,7 @@ where
     >
     where
         B1: MessageBody,
-        F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
+        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
         R: Future<Output = Result<ServiceResponse<B1>, Error>>,
     {
         App {
@@ -309,9 +311,7 @@ where
 #[derive(Clone)]
 struct SpecHandler(Arc<RwLock<DefaultApiRaw>>);
 
-impl actix_web::dev::Factory<(), Ready<Result<HttpResponse, Error>>, Result<HttpResponse, Error>>
-    for SpecHandler
-{
+impl actix_web::dev::Handler<(), Ready<Result<HttpResponse, Error>>> for SpecHandler {
     fn call(&self, _: ()) -> Ready<Result<HttpResponse, Error>> {
         fut_ok(HttpResponse::Ok().json(&*self.0.read()))
     }
