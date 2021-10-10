@@ -522,8 +522,8 @@ impl ServiceFactory<ServiceRequest> for Route {
     type Service = <actix_web::Route as ServiceFactory<ServiceRequest>>::Service;
     type Future = <actix_web::Route as ServiceFactory<ServiceRequest>>::Future;
 
+    #[allow(clippy::unit_arg)]
     fn new_service(&self, cfg: Self::Config) -> Self::Future {
-        #[allow(clippy::unit_arg)]
         self.inner.new_service(cfg)
     }
 }
