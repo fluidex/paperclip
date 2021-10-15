@@ -7,11 +7,14 @@ use super::{
     },
     schema::{Apiv2Errors, Apiv2Operation, Apiv2Schema},
 };
+#[cfg(feature = "actix3")]
+use actix_web::web::ReqData;
 use actix_web::{
     http::StatusCode,
-    web::{Bytes, Data, Form, Json, Path, Payload, Query, ReqData},
-    HttpRequest, HttpResponse, Responder,
+    web::{Bytes, Data, Form, Json, Path, Payload, Query},
+    Error, HttpRequest, HttpResponse, Responder,
 };
+
 use pin_project::pin_project;
 
 use serde::Serialize;
@@ -150,8 +153,10 @@ where
 impl<T> Apiv2Schema for Data<T> {}
 #[cfg(not(feature = "nightly"))]
 impl<T> OperationModifier for Data<T> {}
+#[cfg(feature = "actix3")]
 impl<T: std::clone::Clone> Apiv2Schema for ReqData<T> {}
 #[cfg(not(feature = "nightly"))]
+#[cfg(feature = "actix3")]
 impl<T: std::clone::Clone> OperationModifier for ReqData<T> {}
 
 macro_rules! impl_empty({ $($ty:ty),+ } => {
