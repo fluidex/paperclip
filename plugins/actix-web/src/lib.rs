@@ -50,7 +50,7 @@ pub struct App<T, B> {
 }
 
 #[cfg(feature = "swagger-ui")]
-static SWAGGER_DIST: Dir = include_dir!("../swagger-ui/dist");
+static SWAGGER_DIST: Dir = include_dir!("./swagger-ui/dist");
 
 /// Extension trait for actix-web applications.
 pub trait OpenApiExt<T, B> {
