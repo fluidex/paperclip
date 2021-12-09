@@ -5,6 +5,8 @@ extern crate actix_web3 as actix_web;
 #[cfg(feature = "actix4")]
 extern crate actix_web4 as actix_web;
 
+use crate::web::Data;
+
 #[cfg(feature = "actix4")]
 pub mod web;
 
@@ -107,7 +109,7 @@ where
     ///
     /// **NOTE:** This doesn't affect spec generation.
     pub fn data<U: 'static>(mut self, data: U) -> Self {
-        self.inner = self.inner.take().map(|a| a.data(data));
+        self.inner = self.inner.take().map(|a| a.app_data(Data::new(data)));
         self
     }
 
@@ -121,7 +123,7 @@ where
         D: 'static,
         E: Debug,
     {
-        self.inner = self.inner.take().map(|a| a.data_factory(data));
+        self.inner = self.inner.take().map(|a| a.app_data(Data::new(data)));
         self
     }
 
