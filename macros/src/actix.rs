@@ -1257,7 +1257,6 @@ impl super::Method {
     }
 }
 
-#[macro_use]
 macro_rules! rest_methods {
     (
         $($variant:ident, $method:ident, )+

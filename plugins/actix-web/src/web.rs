@@ -129,7 +129,7 @@ where
     ///
     /// **NOTE:** This doesn't affect spec generation.
     pub fn data<U: 'static>(mut self, data: U) -> Self {
-        self.inner = self.inner.data(data);
+        self.inner = self.inner.app_data(Data::new(data));
         self
     }
 
@@ -323,7 +323,7 @@ where
     ///
     /// **NOTE:** This doesn't affect spec generation.
     pub fn data<U: 'static>(mut self, data: U) -> Self {
-        self.inner = self.inner.take().map(|s| s.data(data));
+        self.inner = self.inner.take().map(|s| s.app_data(Data::new(data)));
         self
     }
 
