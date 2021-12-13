@@ -13,7 +13,7 @@ use actix_web::web::ReqData;
 
 use actix_web::{
     http::StatusCode,
-    web::{Bytes, Data, Form, Json, Path, Payload, Query, ReqData},
+    web::{Bytes, Data, Form, Json, Path, Payload, Query},
     HttpRequest, HttpResponse, Responder,
 };
 

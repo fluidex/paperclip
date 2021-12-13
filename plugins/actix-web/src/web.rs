@@ -1,5 +1,5 @@
 //! Proxy module for [`actix_web::web`](https://docs.rs/actix-web/*/actix_web/web/index.html).
-#![cfg(any(feature = "actix2", feature = "actix3"))]
+#![cfg(any(feature = "actix2", feature = "actix3", feature = "actix4"))]
 
 #[cfg(feature = "actix3")]
 pub use actix_web::web::ReqData;
