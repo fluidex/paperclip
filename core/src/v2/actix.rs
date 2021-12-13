@@ -7,13 +7,12 @@ use super::{
     },
     schema::{Apiv2Errors, Apiv2Operation, Apiv2Schema},
 };
-use crate::util::{ready, Ready};
 #[cfg(feature = "actix3")]
 use actix_web::web::ReqData;
 use actix_web::{
     http::StatusCode,
     web::{Bytes, Data, Form, Json, Path, Payload, Query},
-    Error, HttpRequest, HttpResponse, Responder,
+    HttpRequest, HttpResponse, Responder,
 };
 
 use pin_project::pin_project;

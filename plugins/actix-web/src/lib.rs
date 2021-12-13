@@ -1,4 +1,4 @@
-#![cfg(any(feature = "actix2", feature = "actix3"))]
+#![cfg(any(feature = "actix2", feature = "actix3", feature = "actix4"))]
 
 #[cfg(feature = "actix2")]
 extern crate actix_web2 as actix_web;
