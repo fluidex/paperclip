@@ -13,8 +13,8 @@ use futures::future::{ok as fut_ok, ready, Future, Ready};
 use once_cell::sync::Lazy;
 use paperclip::{
     actix::{
-        api_v2_errors, api_v2_operation, delete, get, post, put, web, Apiv2Schema, Apiv2Security,
-        CreatedJson, NoContent, OpenApiExt,
+        api_v2_errors, api_v2_errors_overlay, api_v2_operation, delete, get, post, put, web,
+        Apiv2Schema, Apiv2Security, CreatedJson, NoContent, OpenApiExt,
     },
     v2::models::{DefaultApiRaw, Info, Tag},
 };
@@ -1015,6 +1015,7 @@ fn test_map_in_out() {
 
     #[derive(Deserialize, Apiv2Schema)]
     struct Filter {
+        #[allow(dead_code)]
         pub folders: HashMap<String, Vec<ImageId>>,
     }
 
@@ -1040,6 +1041,7 @@ fn test_map_in_out() {
             App::new()
                 .wrap_api()
                 .with_json_spec_at("/api/spec")
+                .with_swagger_ui_at("/swagger")
                 .service(web::resource("/images").route(web::get().to(some_images)))
                 .service(web::resource("/catalogue").route(web::post().to(catalogue)))
                 .build()
@@ -1165,6 +1167,13 @@ fn test_map_in_out() {
                      "swagger":"2.0"
                 }),
             );
+
+            let resp = CLIENT
+                .get(&format!("http://{}/swagger", addr))
+                .send()
+                .expect("request failed?");
+
+            assert_eq!(resp.status().as_u16(), 200);
         },
     );
 }
@@ -1329,6 +1338,117 @@ fn test_serde_flatten() {
                         }
                       },
                       "swagger": "2.0"
+                }),
+            );
+        },
+    );
+}
+
+#[test]
+fn test_serde_skip() {
+    #[derive(Deserialize, Serialize, Apiv2Schema)]
+    #[serde(rename_all = "camelCase")]
+    /// Pets are awesome!
+    struct Pet {
+        class: PetClass,
+        #[serde(skip)]
+        #[allow(dead_code)]
+        skip_it: Option<chrono_dev::NaiveDateTime>,
+        un: PetUnnamed,
+    }
+
+    #[derive(Deserialize, Serialize, Apiv2Schema)]
+    #[serde(rename_all = "lowercase")]
+    enum PetClass {
+        Dog,
+        Cat,
+        #[serde(rename = "other")]
+        EverythingElse,
+        #[serde(skip)]
+        #[allow(dead_code)]
+        Another,
+    }
+
+    #[derive(Deserialize, Serialize, Apiv2Schema)]
+    struct PetUnnamed(#[serde(skip)] bool, bool);
+
+    #[post("/v0/pets")]
+    #[api_v2_operation]
+    fn post_pet(pet: web::Json<Pet>) -> impl Future<Output = Result<web::Json<Pet>, ()>> {
+        futures::future::ready(Ok(pet))
+    }
+
+    run_and_check_app(
+        || {
+            App::new()
+                .wrap_api()
+                .with_json_spec_at("/api/spec")
+                .service(post_pet)
+                .build()
+        },
+        |addr| {
+            let resp = CLIENT
+                .get(&format!("http://{}/api/spec", addr))
+                .send()
+                .expect("request failed?");
+
+            check_json(
+                resp,
+                json!({
+                    "definitions": {
+                        "Pet": {
+                            "description": "Pets are awesome!",
+                            "properties": {
+                                "class": {
+                                "enum": ["dog", "cat", "other"],
+                                    "type":"string"
+                                },
+                                "un": {
+                                    "properties": {
+                                        "1": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": ["1"],
+                                    "type": "object"
+                                },
+                            },
+                            "required":[
+                                "class",
+                                "un"
+                            ],
+                            "type":"object"
+                        }
+                    },
+                    "info": {
+                        "title":"",
+                        "version":""
+                    },
+                    "paths": {
+                        "/v0/pets": {
+                            "post": {
+                                "parameters": [
+                                    {
+                                        "in": "body",
+                                        "name": "body",
+                                        "required": true,
+                                        "schema": {
+                                            "$ref": "#/definitions/Pet"
+                                        }
+                                    }
+                                ],
+                                "responses": {
+                                    "200": {
+                                        "description": "OK",
+                                        "schema": {
+                                            "$ref": "#/definitions/Pet"
+                                        }
+                                    }
+                                },
+                            }
+                        },
+                    },
+                    "swagger": "2.0"
                 }),
             );
         },
@@ -2182,110 +2302,110 @@ fn test_operations_macro_attributes() {
     );
 }
 
-#[test] // issue #71
-fn test_multiple_method_routes() {
-    #[api_v2_operation]
-    fn test_get() -> impl Future<Output = String> {
-        ready("get".into())
-    }
-
-    #[api_v2_operation]
-    fn test_post() -> impl Future<Output = String> {
-        ready("post".into())
-    }
-
-    fn test_app<F, T, B>(f: F)
-    where
-        F: Fn() -> App<T, B> + Clone + Send + Sync + 'static,
-        B: MessageBody + 'static,
-        T: ServiceFactory<
-                Config = (),
-                Request = ServiceRequest,
-                Response = ServiceResponse<B>,
-                Error = Error,
-                InitError = (),
-            > + 'static,
-    {
-        run_and_check_app(f, |addr| {
-            let resp = CLIENT
-                .get(&format!("http://{}/v1/foo", addr))
-                .send()
-                .expect("request failed?");
-            assert_eq!(resp.status().as_u16(), 200);
-            assert_eq!(resp.text().unwrap(), "get");
-
-            let resp = CLIENT
-                .post(&format!("http://{}/v1/foo", addr))
-                .send()
-                .expect("request failed?");
-            assert_eq!(resp.status().as_u16(), 200);
-            assert_eq!(resp.text().unwrap(), "post");
-
-            let resp = CLIENT
-                .get(&format!("http://{}/api/spec", addr))
-                .send()
-                .expect("request failed?");
-
-            check_json(
-                resp,
-                json!({
-                  "info":{"title":"","version":""},
-                  "definitions": {},
-                  "paths": {
-                    "/v1/foo": {
-                      "get": {
-                        "responses": {},
-                      },
-                      "post": {
-                        "responses": {},
-                      },
-                    }
-                  },
-                  "swagger": "2.0",
-                }),
-            );
-        });
-    }
-
-    test_app(|| {
-        App::new()
-            .wrap_api()
-            .with_json_spec_at("/api/spec")
-            .route("/v1/foo", web::get().to(test_get))
-            .route("/v1/foo", web::post().to(test_post))
-            .build()
-    });
-
-    fn config(cfg: &mut web::ServiceConfig) {
-        cfg.route("/foo", web::get().to(test_get))
-            .route("/foo", web::post().to(test_post));
-    }
-
-    test_app(|| {
-        App::new()
-            .wrap_api()
-            .with_json_spec_at("/api/spec")
-            .service(web::scope("/v1").configure(config))
-            .build()
-    });
-
-    fn config_1(cfg: &mut web::ServiceConfig) {
-        cfg.route("/v1/foo", web::get().to(test_get));
-    }
-
-    fn config_2(cfg: &mut web::ServiceConfig) {
-        cfg.route("/v1/foo", web::post().to(test_post));
-    }
-
-    test_app(|| {
-        App::new()
-            .wrap_api()
-            .with_json_spec_at("/api/spec")
-            .configure(config_1)
-            .configure(config_2)
-            .build()
-    });
-}
+// #[test] // issue #71
+// fn test_multiple_method_routes() {
+//     #[api_v2_operation]
+//     fn test_get() -> impl Future<Output = String> {
+//         ready("get".into())
+//     }
+//
+//     #[api_v2_operation]
+//     fn test_post() -> impl Future<Output = String> {
+//         ready("post".into())
+//     }
+//
+//     fn test_app<F, T, B>(f: F)
+//     where
+//         F: Fn() -> App<T, B> + Clone + Send + Sync + 'static,
+//         B: MessageBody + 'static,
+//         T: ServiceFactory<
+//                 Config = (),
+//                 Request = ServiceRequest,
+//                 Response = ServiceResponse<B>,
+//                 Error = Error,
+//                 InitError = (),
+//             > + 'static,
+//     {
+//         run_and_check_app(f, |addr| {
+//             let resp = CLIENT
+//                 .get(&format!("http://{}/v1/foo", addr))
+//                 .send()
+//                 .expect("request failed?");
+//             assert_eq!(resp.status().as_u16(), 200);
+//             assert_eq!(resp.text().unwrap(), "get");
+//
+//             let resp = CLIENT
+//                 .post(&format!("http://{}/v1/foo", addr))
+//                 .send()
+//                 .expect("request failed?");
+//             assert_eq!(resp.status().as_u16(), 200);
+//             assert_eq!(resp.text().unwrap(), "post");
+//
+//             let resp = CLIENT
+//                 .get(&format!("http://{}/api/spec", addr))
+//                 .send()
+//                 .expect("request failed?");
+//
+//             check_json(
+//                 resp,
+//                 json!({
+//                   "info":{"title":"","version":""},
+//                   "definitions": {},
+//                   "paths": {
+//                     "/v1/foo": {
+//                       "get": {
+//                         "responses": {},
+//                       },
+//                       "post": {
+//                         "responses": {},
+//                       },
+//                     }
+//                   },
+//                   "swagger": "2.0",
+//                 }),
+//             );
+//         });
+//     }
+//
+//     test_app(|| {
+//         App::new()
+//             .wrap_api()
+//             .with_json_spec_at("/api/spec")
+//             .route("/v1/foo", web::get().to(test_get))
+//             .route("/v1/foo", web::post().to(test_post))
+//             .build()
+//     });
+//
+//     fn config(cfg: &mut web::ServiceConfig) {
+//         cfg.route("/foo", web::get().to(test_get))
+//             .route("/foo", web::post().to(test_post));
+//     }
+//
+//     test_app(|| {
+//         App::new()
+//             .wrap_api()
+//             .with_json_spec_at("/api/spec")
+//             .service(web::scope("/v1").configure(config))
+//             .build()
+//     });
+//
+//     fn config_1(cfg: &mut web::ServiceConfig) {
+//         cfg.route("/v1/foo", web::get().to(test_get));
+//     }
+//
+//     fn config_2(cfg: &mut web::ServiceConfig) {
+//         cfg.route("/v1/foo", web::post().to(test_post));
+//     }
+//
+//     test_app(|| {
+//         App::new()
+//             .wrap_api()
+//             .with_json_spec_at("/api/spec")
+//             .configure(config_1)
+//             .configure(config_2)
+//             .build()
+//     });
+// }
 
 #[test]
 fn test_custom_extractor_empty_schema() {
@@ -2358,18 +2478,51 @@ fn test_errors_app() {
     };
     use std::fmt;
 
+    #[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
+    struct PetErrorScheme1 {}
+    #[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
+    struct PetErrorScheme2 {}
+    #[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
+    struct PetErrorScheme3 {}
+
     #[api_v2_errors(
         400,
         description = "Sorry, bad request",
         code = 401,
         code = 403,
+        schema = "PetErrorScheme1",
         description = "Forbidden, go away",
-        500
+        500,
+        description = "Internal Server Error",
+        schema = "PetErrorScheme2"
     )]
     #[derive(Debug)]
     struct PetError {}
 
+    #[api_v2_errors(
+        400,
+        description = "Sorry, bad request",
+        code = 401,
+        code = 403,
+        schema = "PetErrorScheme1",
+        description = "Forbidden, go away",
+        500,
+        description = "Internal Server Error",
+        default_schema = "PetErrorScheme2"
+    )]
+    #[derive(Debug)]
+    struct PetError2 {}
+
+    #[api_v2_errors_overlay(401)]
+    #[derive(Debug)]
+    struct PetErrorOverlay(pub PetError2);
+
     impl fmt::Display for PetError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "Bad Request")
+        }
+    }
+    impl fmt::Display for PetError2 {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "Bad Request")
         }
@@ -2380,14 +2533,27 @@ fn test_errors_app() {
             HttpResponse::from_error(ErrorBadRequest("Bad Request"))
         }
     }
+    impl ResponseError for PetError2 {
+        fn error_response(&self) -> HttpResponse {
+            HttpResponse::from_error(ErrorBadRequest("Bad Request"))
+        }
+    }
 
     #[api_v2_operation]
     async fn echo_pet_with_errors(body: web::Json<Pet>) -> Result<web::Json<Pet>, PetError> {
         Ok(body)
     }
 
+    #[api_v2_operation]
+    async fn echo_pet_with_errors2(
+        body: web::Json<Pet>,
+    ) -> Result<web::Json<Pet>, PetErrorOverlay> {
+        Ok(body)
+    }
+
     fn config(cfg: &mut web::ServiceConfig) {
         cfg.service(web::resource("/echo").route(web::post().to(echo_pet_with_errors)));
+        cfg.service(web::resource("/echo2").route(web::post().to(echo_pet_with_errors2)));
     }
 
     run_and_check_app(
@@ -2439,7 +2605,13 @@ fn test_errors_app() {
                       },
                       "required":["birthday", "class", "name"],
                       "type":"object"
-                    }
+                    },
+                    "PetErrorScheme1": {
+                      "type": "object"
+                    },
+                    "PetErrorScheme2": {
+                      "type": "object"
+                    },
                   },
                   "paths": {
                     "/api/echo": {
@@ -2466,10 +2638,54 @@ fn test_errors_app() {
                             "description": "Unauthorized"
                           },
                           "403":{
-                            "description":"Forbidden, go away"
+                            "description": "Forbidden, go away",
+                            "schema": {
+                              "$ref": "#/definitions/PetErrorScheme1"
+                            }
                           },
                           "500": {
-                            "description": "Internal Server Error"
+                            "description": "Internal Server Error",
+                            "schema": {
+                              "$ref": "#/definitions/PetErrorScheme2"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "/api/echo2": {
+                      "post": {
+                        "parameters": [{
+                            "in": "body",
+                            "name": "body",
+                            "required": true,
+                            "schema": {
+                              "$ref": "#/definitions/Pet"
+                            }
+                          }],
+                        "responses": {
+                          "200": {
+                            "description": "OK",
+                            "schema": {
+                              "$ref": "#/definitions/Pet"
+                            }
+                          },
+                          "400": {
+                            "description": "Sorry, bad request",
+                            "schema": {
+                              "$ref": "#/definitions/PetErrorScheme2"
+                            }
+                          },
+                          "403":{
+                            "description": "Forbidden, go away",
+                            "schema": {
+                              "$ref": "#/definitions/PetErrorScheme1"
+                            }
+                          },
+                          "500": {
+                            "description": "Internal Server Error",
+                            "schema": {
+                              "$ref": "#/definitions/PetErrorScheme2"
+                            }
                           }
                         }
                       }
@@ -2495,8 +2711,8 @@ fn test_security_app() {
     struct AccessToken;
 
     impl FromRequest for AccessToken {
-        type Future = Ready<Result<Self, Self::Error>>;
         type Error = Error;
+        type Future = Ready<Result<Self, Self::Error>>;
         type Config = ();
 
         fn from_request(_: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
@@ -2515,8 +2731,8 @@ fn test_security_app() {
     struct OAuth2Access;
 
     impl FromRequest for OAuth2Access {
-        type Future = Ready<Result<Self, Self::Error>>;
         type Error = Error;
+        type Future = Ready<Result<Self, Self::Error>>;
         type Config = ();
 
         fn from_request(_: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
@@ -2529,8 +2745,8 @@ fn test_security_app() {
     struct PetScope;
 
     impl FromRequest for PetScope {
-        type Future = Ready<Result<Self, Self::Error>>;
         type Error = Error;
+        type Future = Ready<Result<Self, Self::Error>>;
         type Config = ();
 
         fn from_request(_: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
@@ -2918,4 +3134,12 @@ fn check_json(resp: reqwest::blocking::Response, expected: serde_json::Value) {
             expected.to_string()
         )
     }
+}
+
+#[cfg(feature = "v3")]
+#[test]
+fn test_openapi3() {
+    let spec = std::fs::File::open("tests/pet-v2.yaml").unwrap();
+    let spec: DefaultApiRaw = serde_yaml::from_reader(spec).unwrap();
+    let _spec_v3: openapiv3::OpenAPI = spec.into();
 }

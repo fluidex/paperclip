@@ -1,5 +1,8 @@
 //! Proxy module for [`actix_web::web`](https://docs.rs/actix-web/*/actix_web/web/index.html).
+#![cfg(any(feature = "actix2", feature = "actix3", feature = "actix4"))]
 
+#[cfg(feature = "actix3")]
+pub use actix_web::web::ReqData;
 pub use actix_web::web::{
     block, service, to, Bytes, BytesMut, Data, Form, FormConfig, HttpRequest, HttpResponse, Json,
     JsonConfig, Path, PathConfig, Payload, PayloadConfig, Query, QueryConfig,
@@ -77,15 +80,15 @@ impl<T> Mountable for Resource<T> {
     }
 
     fn operations(&mut self) -> BTreeMap<HttpMethod, DefaultOperationRaw> {
-        mem::replace(&mut self.operations, BTreeMap::new())
+        mem::take(&mut self.operations)
     }
 
     fn definitions(&mut self) -> BTreeMap<String, DefaultSchemaRaw> {
-        mem::replace(&mut self.definitions, BTreeMap::new())
+        mem::take(&mut self.definitions)
     }
 
     fn security_definitions(&mut self) -> BTreeMap<String, SecurityScheme> {
-        mem::replace(&mut self.security, BTreeMap::new())
+        mem::take(&mut self.security)
     }
 }
 
@@ -483,15 +486,15 @@ impl<T> Mountable for Scope<T> {
     }
 
     fn security_definitions(&mut self) -> BTreeMap<String, SecurityScheme> {
-        mem::replace(&mut self.security, BTreeMap::new())
+        mem::take(&mut self.security)
     }
 
     fn definitions(&mut self) -> BTreeMap<String, DefaultSchemaRaw> {
-        mem::replace(&mut self.definitions, BTreeMap::new())
+        mem::take(&mut self.definitions)
     }
 
     fn update_operations(&mut self, map: &mut BTreeMap<String, DefaultPathItemRaw>) {
-        for (path, item) in mem::replace(&mut self.path_map, BTreeMap::new()) {
+        for (path, item) in mem::take(&mut self.path_map) {
             let op_map = map.entry(path).or_insert_with(Default::default);
             op_map.methods.extend(item.methods.into_iter());
         }
@@ -522,8 +525,8 @@ impl ServiceFactory<ServiceRequest> for Route {
     type Service = <actix_web::Route as ServiceFactory<ServiceRequest>>::Service;
     type Future = <actix_web::Route as ServiceFactory<ServiceRequest>>::Future;
 
+    #[allow(clippy::unit_arg)]
     fn new_service(&self, cfg: Self::Config) -> Self::Future {
-        #[allow(clippy::unit_arg)]
         self.inner.new_service(cfg)
     }
 }
@@ -664,15 +667,15 @@ where
     }
 
     fn operations(&mut self) -> BTreeMap<HttpMethod, DefaultOperationRaw> {
-        mem::replace(&mut self.operations, BTreeMap::new())
+        mem::take(&mut self.operations)
     }
 
     fn security_definitions(&mut self) -> BTreeMap<String, SecurityScheme> {
-        mem::replace(&mut self.security, BTreeMap::new())
+        mem::take(&mut self.security)
     }
 
     fn definitions(&mut self) -> BTreeMap<String, DefaultSchemaRaw> {
-        mem::replace(&mut self.definitions, BTreeMap::new())
+        mem::take(&mut self.definitions)
     }
 }
 
@@ -709,15 +712,15 @@ impl<'a> Mountable for ServiceConfig<'a> {
     }
 
     fn security_definitions(&mut self) -> BTreeMap<String, SecurityScheme> {
-        mem::replace(&mut self.security, BTreeMap::new())
+        mem::take(&mut self.security)
     }
 
     fn definitions(&mut self) -> BTreeMap<String, DefaultSchemaRaw> {
-        mem::replace(&mut self.definitions, BTreeMap::new())
+        mem::take(&mut self.definitions)
     }
 
     fn update_operations(&mut self, map: &mut BTreeMap<String, DefaultPathItemRaw>) {
-        for (path, item) in mem::replace(&mut self.path_map, BTreeMap::new()) {
+        for (path, item) in mem::take(&mut self.path_map) {
             let op_map = map.entry(path).or_insert_with(Default::default);
             op_map.methods.extend(item.methods.into_iter());
         }
@@ -756,6 +759,15 @@ impl<'a> ServiceConfig<'a> {
         U: AsRef<str>,
     {
         self.inner.external_resource(name, url);
+        self
+    }
+
+    /// Proxy for [`actix_web::web::ServiceConfig::app_data`](https://docs.rs/actix-web/3.3.2/actix_web/web/struct.ServiceConfig.html#method.app_data).
+    ///
+    /// **NOTE:** This doesn't affect spec generation.
+    #[cfg(feature = "actix3")]
+    pub fn app_data<U: 'static>(&mut self, data: U) -> &mut Self {
+        self.inner.app_data(data);
         self
     }
 }
