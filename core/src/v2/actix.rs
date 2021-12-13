@@ -2,16 +2,20 @@
 use super::schema::TypedData;
 use super::{
     models::{
-        DefaultOperationRaw, DefaultResponseRaw, DefaultSchemaRaw, Either, Items, Parameter,
-        ParameterIn, Response, SecurityScheme,
+        DefaultOperationRaw, DefaultSchemaRaw, Either, Items, Parameter, ParameterIn, Response,
+        SecurityScheme,
     },
     schema::{Apiv2Errors, Apiv2Operation, Apiv2Schema},
 };
+use crate::util::{ready, Ready};
+#[cfg(feature = "actix3")]
+use actix_web::web::ReqData;
 use actix_web::{
     http::StatusCode,
-    web::{Bytes, Data, Form, Json, Path, Payload, Query, ReqData},
-    HttpRequest, HttpResponse, Responder,
+    web::{Bytes, Data, Form, Json, Path, Payload, Query},
+    Error, HttpRequest, HttpResponse, Responder,
 };
+
 use pin_project::pin_project;
 
 use serde::Serialize;
@@ -132,11 +136,12 @@ where
 
     fn update_response(op: &mut DefaultOperationRaw) {
         T::update_response(op);
-        update_error_definitions_from_schema_type::<E>(op);
+        E::update_error_definitions(op);
     }
 
     fn update_definitions(map: &mut BTreeMap<String, DefaultSchemaRaw>) {
         T::update_definitions(map);
+        E::update_definitions(map);
     }
 
     fn update_security_definitions(map: &mut BTreeMap<String, SecurityScheme>) {
@@ -149,8 +154,10 @@ where
 impl<T> Apiv2Schema for Data<T> {}
 #[cfg(not(feature = "nightly"))]
 impl<T> OperationModifier for Data<T> {}
+#[cfg(feature = "actix3")]
 impl<T: std::clone::Clone> Apiv2Schema for ReqData<T> {}
 #[cfg(not(feature = "nightly"))]
+#[cfg(feature = "actix3")]
 impl<T: std::clone::Clone> OperationModifier for ReqData<T> {}
 
 macro_rules! impl_empty({ $($ty:ty),+ } => {
@@ -209,6 +216,8 @@ mod manual_impl {
     impl_simple!(chrono::NaiveDateTime);
     #[cfg(feature = "rust_decimal")]
     impl_simple!(rust_decimal::Decimal);
+    #[cfg(feature = "url")]
+    impl_simple!(url::Url);
     #[cfg(feature = "uuid")]
     impl_simple!(uuid::Uuid);
 }
@@ -522,22 +531,6 @@ where
         }
 
         break;
-    }
-}
-
-/// Given a schema type that represents an error, add the responses
-/// representing those errors.
-fn update_error_definitions_from_schema_type<T>(op: &mut DefaultOperationRaw)
-where
-    T: Apiv2Errors,
-{
-    for (status, def_name) in T::ERROR_MAP {
-        let response = DefaultResponseRaw {
-            description: Some((*def_name).to_string()),
-            ..Default::default()
-        };
-        op.responses
-            .insert(status.to_string(), Either::Right(response));
     }
 }
 
