@@ -12,8 +12,6 @@ use crate::web::Data;
 #[cfg(feature = "swagger-ui")]
 use include_dir::{include_dir, Dir};
 
-use crate::web::Data;
-
 #[cfg(feature = "actix4")]
 pub mod web;
 
