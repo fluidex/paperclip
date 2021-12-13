@@ -22,7 +22,7 @@ paperclip-actix = { path = "plugins/actix-web", version = "0.4.2", optional = tr
 paperclip-core = { path = "core", version = "0.4.1" }
 paperclip-macros = { path = "macros", version = "0.5.1", optional = true }
 
-env_logger = { version = "0.8", optional = true }
+env_logger = { version = "0.9", optional = true }
 git2 = { version = "0.13", optional = true }
 heck = { version = "0.3", optional = true }
 http = { version = "0.2", optional = true }
@@ -51,7 +51,7 @@ actix-web2 = { version = "2", default-features = false, package = "actix-web" }
 actix-web3 = { version = "3", default-features = false, package = "actix-web" }
 actix-web4 = { version = "4.0.0-beta.12", default-features = false, package = "actix-web" }
 chrono_dev = { version = "0.4", features = ["serde"], package = "chrono" }
-env_logger = "0.8"
+env_logger = "0.9"
 futures = "0.3"
 insta = "1.0"
 log = { version = "0.4", features = ["kv_unstable"] }
